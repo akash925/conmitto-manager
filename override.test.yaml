@@ -1,0 +1,22 @@
+version: '3.5'
+
+services:
+  api:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./api
+      dockerfile: ./compose/test/Dockerfile
+      args:
+        - ENV=development
+
+    command: python /app/api/manage.py runserver 0.0.0.0:8000
+    environment:
+      - DB_NAME=postgres
+    volumes:
+      - ./api:/app/api
+  db:
+    container_name: dev_db
+    build:
+      context: ./db
+      dockerfile: Dockerfile

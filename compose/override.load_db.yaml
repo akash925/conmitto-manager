@@ -1,0 +1,5 @@
+version: '3.5'
+
+services:
+  api:
+    entrypoint: /app/api/compose/tasks/load_db_entrypoint.sh

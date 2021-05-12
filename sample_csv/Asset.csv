@@ -1,0 +1,5 @@
+name,manufacturer_name,purchased_date,description,purchase_price,uptime,temperature,tags
+scissors,Stackend,,,,,,"Cool,Office"
+stapler,Stackend
+Fail asset,Stackend,,,,,,,,,,
+paper,Stackend Solutions

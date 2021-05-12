@@ -1,0 +1,44 @@
+version: '3.5'
+
+services:
+  traefik:
+    networks:
+      - master
+  api:
+    networks:
+      - master
+    labels:
+      - "traefik.docker.network=${network_name:-masternetwork}"
+  celery:
+    networks:
+      - master
+  celery-beat:
+    networks:
+      - master
+  db:
+    networks:
+      - master
+  ui:
+    networks:
+      - master
+    labels:
+      - "traefik.docker.network=${network_name:-masternetwork}"
+  portainer:
+    networks:
+      - master
+    labels:
+      - "traefik.docker.network=${network_name:-masternetwork}"
+  redis:
+    networks:
+      - master
+  rabbitmq:
+    networks:
+      - master
+    labels:
+      - "traefik.docker.network=${network_name:-masternetwork}"
+networks:
+  # Network mostly needed for swarm
+  # Set to bridge to test locally and have ports be outside accessible
+  master:
+    name: "${network_name:-masternetwork}"
+    driver: overlay

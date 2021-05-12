@@ -1,0 +1,21 @@
+version: '3.5'
+
+services:
+  api:
+    stdin_open: true
+    tty: true
+    build:
+      context: ./api
+      dockerfile: ./compose/local/Dockerfile
+      args:
+        - ENV=development
+    command: python /app/api/manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./api:/app/api
+  db:
+    container_name: dev_db
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    ports:
+      - "5432:5432"

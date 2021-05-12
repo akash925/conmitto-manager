@@ -1,0 +1,29 @@
+[tool.flakehell]
+# optionally inherit from remote config (or local if you want)
+base = "https://raw.githubusercontent.com/life4/flakehell/master/pyproject.toml"
+format = "grouped"
+ignore = ["E731", "E501", "E1102", "DJ08", "DJ05"]
+exclude = ["migrations", "config", "choices.py"]
+max_complexity = 30
+
+[tool.flakehell.plugins]
+"*" = ["+*"]
+"flake8-*" = ["+*"]
+
+[tool.coverage.run]
+source = ["api"]
+omit = [
+  "**/admin.py",
+  "**/apps.py",
+  "**/urls.py",
+  "**/migrations/**",
+  "manage.py",
+  "__init__.py",
+  "**/tests.py",
+  "base/tests/*.py",
+  "management/commands/*.py"
+  ]
+
+
+[tool.coverage.report]
+skip_empty = true

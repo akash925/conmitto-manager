@@ -1,0 +1,203 @@
+version: '3.5'
+
+services:
+
+  traefik:
+    image: traefik:1.7 # The official Traefik docker image
+    command: --api --docker # Enables the web UI and tells Traefik to listen to docker
+    ports:
+      - "80:80"     # The HTTP port
+      - "443:443"     # The HTTPS port
+      - "8080:8080" # The Web UI (enabled by --api)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik/${TRAEFIK_CONFIG:-traefik_dev.toml}:/traefik.toml
+      - ./traefik/acme.json:/acme.json
+  api:
+    image: ${CI_REGISTRY_IMAGE:-localhost}/api:${BUILD_TAG:-latest}
+    build:
+      context: ./api
+      dockerfile: ./compose/production/Dockerfile
+      args:
+        - ENV=${ENV:-development}
+        - SQL_HOST=db
+        - SQL_PORT=5432
+        - SQL_DATABASE=${DB_NAME:-conmitto}
+        - SQL_USER=${DB_USER:-conmitto}
+        - SQL_PASSWORD=${DB_PW:-yCV2hh9HuBebkCEzHnGhfcXCP8Dm9GHW}
+        - CONMITTO_EMAIL_PASS=${EMAIL_PASSWORD:-200ndearborn}
+    command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
+    volumes:
+      - ./api:/api
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=please_change_me
+      - SQL_ENGINE=django.contrib.gis.db.backends.postgis
+      - DB_NAME=${DB_NAME:-conmitto}
+      - DB_USER=${DB_USER:-conmitto}
+      - DB_PW=${DB_PW:-L4gs3RpD4sAJyN2rgaaU}
+      - SQL_HOST=db
+      - SQL_PORT=5432
+      - DATABASE=postgres
+      - ENV=${ENV:-development}
+      - CONMITTO_EMAIL_PASS=${EMAIL_PASSWORD:-200ndearborn}
+      - REDIS_HOST=redis
+      - BASE_URL=${BASE_URL:-localhost}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-mypass}
+      - AZURE_ACCOUNT_KEY=${AZURE_ACCOUNT_KEY:-}
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+    labels:
+      - "traefik.backend=api"
+      - "traefik.frontend.rule=Host:api.${BASE_URL:-localhost}" # add another rule with ";Host:host"
+      - "traefik.enable=true"
+      - "traefik.port=8000"
+  celery:
+    image: ${CI_REGISTRY_IMAGE:-localhost}/celery:${BUILD_TAG:-latest}
+    build:
+      context: ./api
+      dockerfile: ./compose/celery/Dockerfile
+      args:
+        - ENV=${ENV:-development}
+        - SQL_HOST=db
+        - SQL_PORT=5432
+        - SQL_DATABASE=${DB_NAME:-conmitto}
+        - SQL_USER=${DB_USER:-conmitto}
+        - SQL_PASSWORD=${DB_PW:-yCV2hh9HuBebkCEzHnGhfcXCP8Dm9GHW}
+        - CONMITTO_EMAIL_PASS=${EMAIL_PASSWORD:-200ndearborn}
+    command: celery -A config worker -l info
+    environment:
+      - SECRET_KEY=please_change_me
+      - SQL_ENGINE=django.contrib.gis.db.backends.postgis
+      - DB_NAME=${DB_NAME:-conmitto}
+      - DB_USER=${DB_USER:-conmitto}
+      - DB_PW=${DB_PW:-L4gs3RpD4sAJyN2rgaaU}
+      - SQL_HOST=db
+      - SQL_PORT=5432
+      - DATABASE=postgres
+      - ENV=${ENV:-development}
+      - CONMITTO_EMAIL_PASS=${EMAIL_PASSWORD:-200ndearborn}
+      - REDIS_HOST=redis
+      - BASE_URL=${BASE_URL:-localhost}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-mypass}
+    volumes:
+      - ./api:/app/api
+    depends_on:
+      - db
+      - redis
+  celery-beat:
+    image: ${CI_REGISTRY_IMAGE:-localhost}/celery-beat:${BUILD_TAG:-latest}
+    build:
+      context: ./api
+      dockerfile: ./compose/celery-beat/Dockerfile
+      args:
+        - ENV=${ENV:-development}
+        - SQL_HOST=db
+        - SQL_PORT=5432
+        - SQL_DATABASE=${DB_NAME:-conmitto}
+        - SQL_USER=${DB_USER:-conmitto}
+        - SQL_PASSWORD=${DB_PW:-yCV2hh9HuBebkCEzHnGhfcXCP8Dm9GHW}
+        - CONMITTO_EMAIL_PASS=${EMAIL_PASSWORD:-200ndearborn}
+    command: celery -A config beat -l info
+    environment:
+      - SECRET_KEY=please_change_me
+      - SQL_ENGINE=django.contrib.gis.db.backends.postgis
+      - DB_NAME=${DB_NAME:-conmitto}
+      - DB_USER=${DB_USER:-conmitto}
+      - DB_PW=${DB_PW:-L4gs3RpD4sAJyN2rgaaU}
+      - SQL_HOST=db
+      - SQL_PORT=5432
+      - DATABASE=postgres
+      - ENV=${ENV:-development}
+      - CONMITTO_EMAIL_PASS=${EMAIL_PASSWORD:-200ndearborn}
+      - REDIS_HOST=redis
+      - BASE_URL=${BASE_URL:-localhost}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-mypass}
+    volumes:
+      - ./api:/app/api
+    depends_on:
+      - api
+      - db
+      - redis
+  db:
+    restart: always
+    image: mdillon/postgis:11
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${DB_NAME:-conmitto}
+      - POSTGRES_USER=${DB_USER:-conmitto}
+      - POSTGRES_PASSWORD=${DB_PW:-L4gs3RpD4sAJyN2rgaaU}
+  ui:
+    image: ${CI_REGISTRY_IMAGE:-localhost}/ui:${BUILD_TAG:-latest}
+    build:
+      context: ./ui
+      args:
+        - ENV=${ENV:-development}
+        - BASE_URL=${BASE_URL:-localhost}
+    ports:
+      - 80
+    environment:
+      # Needed for haproxy in swarm
+      - SERVICE_PORTS=80
+    labels:
+      - "traefik.backend=ui"
+      - "traefik.frontend.rule=Host:${BASE_URL:-localhost}" # add another rule with ";Host:host"
+      - "traefik.enable=true"
+      - "traefik.port=80"
+  portainer:
+    image: portainer/portainer
+    ports:
+      - 9000
+    command: -H unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./portainer-data:/data
+    labels:
+      - "traefik.backend=portainer"
+      - "traefik.docker.network=${network_name:-masternetwork}"
+      - "traefik.frontend.rule=Host:portainer.${BASE_URL:-localhost}" # add another rule with ";Host:host"
+      - "traefik.enable=true"
+      - "traefik.port=9000"
+  redis:
+    restart: always
+    image: redis:latest
+    volumes:
+      - ./redisdata:/data
+  rabbitmq:
+    container_name: rabbitmq
+    hostname: rabbitmq
+    image: rabbitmq:management
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-mypass}
+    volumes:
+      - ./rabbitmq:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"  # we forward this port because it's useful for debugging
+      - "15672:15672"  # here, we can access rabbitmq management plugin
+    restart: on-failure
+    labels:
+      - "traefik.backend=rabbitmq"
+      - "traefik.frontend.rule=Host:rabbitmq.${BASE_URL:-localhost}" # add another rule with ";Host:host"
+      - "traefik.enable=true"
+      - "traefik.port=15672"
+
+  logspout:
+    image: bekt/logspout-logstash
+    environment:
+      ROUTE_URIS: 'logstash+tcp://internal.stackendsolutions.com:5000'
+      LOGSTASH_FIELDS: "hidden=${HIDDEN_FIELD:-03d3d52b1bba3ba32ef881edd274205a0e679803},name=conmitto-${ENV:-unknownenv}-${BUILD_TAG:-buildtag}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 10s
+    restart: on-failure
